@@ -1,0 +1,28 @@
+{
+  "name": "slaze-browser-extension",
+  "version": "1.0.0",
+  "description": "Slaze browser extension for inline Reddit voting. Build step compiles the React vote-menu component.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build && node scripts/generate-manifest.mjs",
+    "watch": "vite build --watch",
+    "dev": "vite build --watch",
+    "typecheck": "tsc --noEmit",
+    "build:firefox": "node scripts/build-firefox.mjs",
+    "sync:firefox": "node scripts/build-firefox.mjs --skip-build"
+  },
+  "dependencies": {
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.40",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "esbuild": "^0.28.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.10"
+  }
+}

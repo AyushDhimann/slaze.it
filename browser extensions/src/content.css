@@ -1,0 +1,499 @@
+/* ============================================================
+   Slaze Badge Styles
+   Loaded on every supported platform via manifest.json.
+   ============================================================ */
+
+/* Base pill */
+.slaze-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font: 600 11px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  margin-inline-end: 6px;
+  cursor: default;
+  vertical-align: middle;
+  user-select: none;
+  transition: opacity 0.15s ease;
+}
+
+/* Loading state: pulsing grey */
+.slaze-badge--loading {
+  background: #e5e7eb;
+  color: #6b7280;
+  animation: slaze-pulse 1.2s ease-in-out infinite;
+}
+
+/* Unrated state: dashed outline, no colour */
+.slaze-badge--unrated {
+  background: transparent;
+  color: #9ca3af;
+  border: 1px dashed #d1d5db;
+}
+
+/* Offline / API unreachable */
+.slaze-badge--offline {
+  background: #f3f4f6;
+  color: #9ca3af;
+  border: 1px solid #e5e7eb;
+}
+
+/* ── Dominant categories ─────────────────────────────────── */
+
+.slaze-badge--genuine {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.slaze-badge--ai-slop {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.slaze-badge--rage-bait {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.slaze-badge--clickbait {
+  background: #fef3c7;
+  color: #a16207;
+}
+
+.slaze-badge--hidden-ad {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.slaze-badge--misleading {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.slaze-badge--helpful {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.slaze-badge--wholesome {
+  background: #cffafe;
+  color: #155e75;
+}
+
+.slaze-badge--ad-promo {
+  background: #ffe4e6;
+  color: #be123c;
+}
+
+.slaze-badge--bait {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
+.slaze-badge--brainrot {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.slaze-badge--rant {
+  background: #fef3c7;
+  color: #a16207;
+}
+
+@keyframes slaze-pulse {
+  0%,
+  100% { opacity: 1; }
+  50%   { opacity: 0.35; }
+}
+
+/* ============================================================
+   Slaze Reddit Inline Vote Menu
+   All selectors use .slaze- prefix. No Shadow DOM.
+   Styles are page-level, loaded by manifest.json alongside the
+   badge styles above.
+   ============================================================ */
+
+/* Root container: a <span> that sits in Reddit's action-row flex container.
+   Reddit applies `gap` between flex children, so this gets the same spacing
+   as upvote, comment, award, and share with no manual margin needed.
+   overflow: visible is critical so the dropdown can escape the action-row
+   bounds when rendered inside the shreddit-post shadow DOM. */
+.slaze-vote-root {
+  display: flex;
+  align-items: center;
+  overflow: visible;
+  /* Keep text rendering consistent with surrounding action buttons */
+  font: inherit;
+  color: inherit;
+}
+
+/* Positioning wrapper for button + dropdown */
+.slaze-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ── Action button ─────────────────────────────────────────────── */
+
+.slaze-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  border-radius: 999px;
+  /* Fallback bg: overridden at runtime by JS cloning the Share button's bg */
+  background: var(--slaze-btn-bg, rgba(127, 127, 127, 0.15));
+  color: inherit;
+  font: inherit;
+  min-height: 32px;
+  padding: 6px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.12s ease;
+}
+
+.slaze-btn:hover {
+  filter: brightness(1.15);
+}
+
+.slaze-btn[aria-expanded="true"] {
+  filter: brightness(1.08);
+}
+
+.slaze-btn:focus-visible {
+  outline: 2px solid Highlight;
+  outline-offset: 2px;
+}
+
+.slaze-btn svg {
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Brand icon uses fill, not stroke; override the above */
+.slaze-btn .slaze-brand-icon {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* ── Dropdown ──────────────────────────────────────────────────── */
+
+.slaze-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 188px;
+  max-width: min(92vw, 260px);
+  padding: 8px;
+  border-radius: 16px;
+  background: #ffffff;
+  color: #1c1c1c;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12),
+              0 12px 28px rgba(0, 0, 0, 0.18);
+  z-index: 2147483000;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ── Category row ──────────────────────────────────────────────── */
+
+.slaze-cat {
+  /* Reset browser button defaults without losing inheritance */
+  all: unset;
+  box-sizing: border-box;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.3;
+  color: inherit;
+
+  /* Fill bar context */
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+
+  transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* ::before = percentage fill bar from backend (0-100%). */
+.slaze-cat::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: var(--slaze-fill-pct, 0%);
+  background: var(--slaze-fill-color, rgba(107, 114, 128, 0.35));
+  z-index: 0;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* All direct children sit above the fill bar */
+.slaze-cat > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Hover state: light accent background */
+.slaze-cat:hover {
+  background-color: var(--slaze-cat-bg);
+  color: var(--slaze-accent);
+}
+
+/* Selected state: light bg persists + fill bar animates in.
+   Text stays accent-colored in light mode (good contrast on pastel fills).
+   Dark mode override below switches to white for readability. */
+.slaze-cat--on {
+  background-color: var(--slaze-cat-bg);
+  color: var(--slaze-accent);
+  font-weight: 600;
+  border-color: var(--slaze-accent);
+  box-shadow: inset 0 0 0 1px var(--slaze-accent);
+}
+
+.slaze-cat:focus-visible {
+  outline: 2px solid var(--slaze-accent);
+  outline-offset: -2px;
+}
+
+/* Icon container */
+.slaze-cat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.slaze-cat-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Label */
+.slaze-cat-label {
+  flex: 1;
+}
+
+.slaze-cat-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 18px;
+  margin-left: 8px;
+}
+
+.slaze-cat-picked {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  color: var(--slaze-accent);
+}
+
+.slaze-cat-picked svg {
+  display: block;
+}
+
+.slaze-section-header {
+  padding: 4px 14px 2px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.slaze-section-header--positive {
+  color: #16a34a;
+}
+
+.slaze-section-header--negative {
+  color: #dc2626;
+  margin-top: 4px;
+}
+
+.slaze-menu-hint {
+  margin: 6px 4px 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #9ca3af;
+}
+
+/* Verdict label rendered at the top of the dropdown (TW-DCS-RGB engine). */
+.slaze-verdict {
+  padding: 8px 10px 10px;
+  margin: -4px -4px 6px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: linear-gradient(180deg, rgba(249, 115, 22, 0.08), transparent);
+  border-radius: 8px 8px 0 0;
+  text-align: center;
+}
+
+.slaze-verdict-phrase {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #111;
+  letter-spacing: 0.2px;
+}
+
+.slaze-verdict-subtext {
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.3;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* ── X / Twitter specific ─────────────────────────────────────── */
+
+/* Badge pill in the tweet header row.
+   margin-left: auto pushes it flush to the right so it sits just left
+   of the Grok/More button group (.r-1kkk96v), with equal spacing. */
+/* Badge pill in tweet header: top-aligned to match Grok/More icons,
+   margin-left: auto pushes it flush right before the .r-1kkk96v group. */
+article[data-testid="tweet"] .slaze-badge {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-left: auto;
+  margin-inline-end: 8px;
+  margin-top: 3px;
+}
+
+/* X action-bar button: transparent, muted gray, matches native items. */
+[data-slaze-platform="x"] .slaze-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  color: rgb(83, 100, 113);
+  min-height: unset;
+  padding: 4px 8px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1;
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-slaze-platform="x"] .slaze-btn {
+    color: rgb(113, 118, 123);
+  }
+}
+
+[data-slaze-platform="x"] .slaze-btn:hover {
+  background-color: rgba(29, 155, 240, 0.1);
+  color: rgb(29, 155, 240);
+}
+
+[data-slaze-platform="x"] .slaze-btn[aria-expanded="true"] {
+  color: rgb(29, 155, 240);
+  background-color: rgba(29, 155, 240, 0.1);
+}
+
+[data-slaze-platform="x"] .slaze-btn svg {
+  stroke-width: 1.5;
+}
+
+/* Brand icon: filled, not stroked; fixed 16×16 so it never shifts. */
+[data-slaze-platform="x"] .slaze-btn .slaze-brand-icon {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  fill: currentColor;
+  stroke: none;
+  /* Nudge the icon onto the text baseline */
+  position: relative;
+  top: 0.5px;
+}
+
+/* The label span: prevent any extra leading from `font: inherit` */
+[data-slaze-platform="x"] .slaze-btn > span {
+  line-height: 1;
+}
+
+/* Action-row container: fills the gap between Bookmark and Share,
+   centres the Slaze button within that space. */
+[data-slaze-platform="x"].slaze-vote-root {
+  flex: 1;
+  justify-content: flex-start;
+  padding-right: 10px;
+}
+
+/* ── Dark mode ─────────────────────────────────────────────────── */
+
+@media (prefers-color-scheme: dark) {
+  .slaze-dropdown {
+    background: #1a1a1b;
+    color: #d7dadc;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35),
+                0 12px 28px rgba(0, 0, 0, 0.5);
+  }
+
+  /* In dark mode the fill bar renders as a dark-tinted accent color.
+     Accent-colored text on that background has very low contrast (e.g.
+     amber text on an amber-tinted dark bg). White text reads clearly on
+     any colored fill. The icon inherits white too, which looks sharp. */
+  .slaze-cat--on,
+  .slaze-cat--on:hover {
+    color: #fff;
+  }
+
+  .slaze-cat-picked {
+    color: var(--slaze-accent);
+  }
+
+  .slaze-menu-hint {
+    color: #b3b6bb;
+  }
+
+  .slaze-verdict {
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(249, 115, 22, 0.14), transparent);
+  }
+
+  .slaze-verdict-phrase {
+    color: #f4f4f5;
+  }
+
+  .slaze-verdict-subtext {
+    color: #a1a1aa;
+  }
+
+  .slaze-section-header--positive {
+    color: #4ade80;
+  }
+
+  .slaze-section-header--negative {
+    color: #f87171;
+  }
+}
+
