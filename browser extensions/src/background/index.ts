@@ -85,7 +85,11 @@ chrome.runtime.onInstalled.addListener(async () => {
       });
       if (res.ok) {
         const data: unknown = await res.json();
-        if (data && typeof data === "object" && typeof (data as Record<string, unknown>).token === "string") {
+        if (
+          data &&
+          typeof data === "object" &&
+          typeof (data as Record<string, unknown>).token === "string"
+        ) {
           updates.slaze_auth_token = (data as Record<string, string>).token;
         }
       } else {

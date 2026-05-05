@@ -30,7 +30,7 @@ import { registerVoteMenu } from './voteMenuRegistry';
 import type { PlatformAdapter, Rating } from '../../../shared/types';
 
 // Import CSS as a raw string at build time for shadow DOM injection
-import slazeCSSText from "../../../content.css?raw";
+import slazeCSSText from "data-text:~content.css";
 
 const ATTR = "data-slaze-vote-menu";
 const _reactRoots = new WeakMap<Element, Root>();

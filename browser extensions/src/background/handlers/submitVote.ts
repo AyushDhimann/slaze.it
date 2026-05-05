@@ -2,7 +2,7 @@ import { API_BASE } from '../../shared/config';
 import { parseVerdictHeaders } from '../../shared/parseHeaders';
 import { fetchWithRetry } from '../../shared/fetchWithRetry';
 import type { SubmitVoteRequest, SubmitVoteResponse } from '../../shared/types';
-import { getToken, refreshToken } from '../token';
+import { getToken, refreshToken, getClerkUserId } from '../token';
 
 export async function handleSubmitVote(
   msg: SubmitVoteRequest
@@ -19,19 +19,18 @@ export async function handleSubmitVote(
     `${API_BASE}/ratings/${encodeURIComponent(platform)}/${encodeURIComponent(postId)}` +
     `/vote/${encodeURIComponent(payload)}`;
 
-  function doFetch(tok: string): () => Promise<Response> {
-    return () =>
-      fetch(url, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${tok}` },
-      });
+  async function doFetch(tok: string): Promise<Response> {
+    const headers: Record<string, string> = { Authorization: `Bearer ${tok}` };
+    const clerkId = await getClerkUserId();
+    if (clerkId) headers["X-Slaze-User"] = clerkId;
+    return fetch(url, { method: "POST", headers });
   }
 
-  let res = await fetchWithRetry(doFetch(token));
+  let res = await fetchWithRetry(() => doFetch(token));
   if (res.status === 401) {
     token = await refreshToken();
     if (!token) return { ok: false, status: 401, etag: null, verdict: null };
-    res = await fetchWithRetry(doFetch(token));
+    res = await fetchWithRetry(() => doFetch(token));
   }
 
   const verdict = parseVerdictHeaders(res);

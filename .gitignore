@@ -1,6 +1,7 @@
 # Environment variables (local configuration)
 .env.local
 .env
+.env.dev
 
 # Dependencies
 node_modules/
@@ -33,6 +34,11 @@ yarn-error.log*
 # Compiled output
 *.js.map
 
+# Plasmo cache
+.plasmo
+
 # ZIP archives
 firefox.zip
 *.zip
+
+demo-reference

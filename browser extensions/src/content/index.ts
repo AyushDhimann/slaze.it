@@ -4,9 +4,6 @@
  * Import order matters: modules self-register as side-effects of being
  * imported (platform adapters in the registry, vote menu injectors in
  * their registry). The cache and API client initialise on import too.
- *
- * Replaces the old manifest.json `js` array load order and the
- * `window.Slaze` namespace pattern.
  */
 
 // ── Foundation: config + API client (creates cache + auth token singletons) ──

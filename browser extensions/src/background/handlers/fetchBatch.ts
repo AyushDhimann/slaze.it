@@ -3,9 +3,21 @@ import { lookupVerdict } from '../../shared/verdictCatalog';
 import { fetchWithRetry } from '../../shared/fetchWithRetry';
 import type { BatchItem, BinaryRatingEntry } from '../../shared/types';
 import { platformEncode } from '../platformEncode';
-import { getToken, refreshToken } from '../token';
+import { getToken, refreshToken, getClerkUserId } from '../token';
 
 const enc = new TextEncoder();
+
+async function buildHeaders(tok: string): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${tok}`,
+    "Content-Type": "application/octet-stream",
+  };
+  const clerkId = await getClerkUserId();
+  if (clerkId) {
+    headers["X-Slaze-User"] = clerkId;
+  }
+  return headers;
+}
 
 /** Pack an array of items into a compact Uint8Array for the /v1/b endpoint. */
 function packBatchRequest(
@@ -41,23 +53,20 @@ export async function handleFetchBatch(
 
   const body = packBatchRequest(items);
 
-  function doFetch(tok: string): () => Promise<Response> {
-    return () =>
-      fetch(`${API_BASE}/b`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${tok}`,
-          "Content-Type": "application/octet-stream",
-        },
-        body: body as BodyInit,
-      });
+  async function doFetch(tok: string): Promise<Response> {
+    const headers = await buildHeaders(tok);
+    return fetch(`${API_BASE}/b`, {
+      method: "POST",
+      headers,
+      body: body as BodyInit,
+    });
   }
 
-  let res = await fetchWithRetry(doFetch(token));
+  let res = await fetchWithRetry(() => doFetch(token));
   if (res.status === 401) {
     token = await refreshToken();
     if (!token) return { ok: false };
-    res = await fetchWithRetry(doFetch(token));
+    res = await fetchWithRetry(() => doFetch(token));
   }
 
   if (!res.ok) return { ok: false };

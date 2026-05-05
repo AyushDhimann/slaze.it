@@ -1,28 +1,45 @@
 {
   "name": "slaze-browser-extension",
   "version": "1.0.0",
-  "description": "Slaze browser extension for inline Reddit voting. Build step compiles the React vote-menu component.",
+  "displayName": "Slaze",
+  "description": "Community-powered post quality ratings. See if a post is worth reading before you waste your time.",
   "private": true,
-  "type": "module",
   "scripts": {
-    "build": "vite build && node scripts/generate-manifest.mjs",
-    "watch": "vite build --watch",
-    "dev": "vite build --watch",
-    "typecheck": "tsc --noEmit",
-    "build:firefox": "node scripts/build-firefox.mjs",
-    "sync:firefox": "node scripts/build-firefox.mjs --skip-build"
+    "copy-env": "node scripts/copy-env.mjs",
+    "build": "node scripts/copy-env.mjs prod && plasmo build",
+    "build:firefox": "node scripts/copy-env.mjs prod && plasmo build --target=firefox-mv2",
+    "dev": "node scripts/copy-env.mjs dev && plasmo dev",
+    "dev:firefox": "node scripts/copy-env.mjs dev && plasmo dev --target=firefox-mv2",
+    "package": "node scripts/copy-env.mjs prod && plasmo package",
+    "package:firefox": "node scripts/copy-env.mjs prod && plasmo package --target=firefox-mv2",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@clerk/chrome-extension": "^2.7.3",
+    "plasmo": "^0.90.5",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "react-router-dom": "^7.9.4"
   },
   "devDependencies": {
     "@types/chrome": "^0.1.40",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.1",
-    "esbuild": "^0.28.0",
-    "typescript": "^6.0.3",
-    "vite": "^8.0.10"
+    "typescript": "^6.0.3"
+  },
+  "manifest": {
+    "name": "Slaze",
+    "description": "Community-powered post quality ratings",
+    "permissions": [
+      "storage",
+      "cookies"
+    ],
+    "host_permissions": [
+      "https://api.slaze.it.com/*",
+      "http://localhost:8082/*",
+      "$CLERK_FRONTEND_API/*",
+      "$PLASMO_PUBLIC_CLERK_SYNC_HOST/*"
+    ],
+    "key": "$CRX_PUBLIC_KEY"
   }
 }

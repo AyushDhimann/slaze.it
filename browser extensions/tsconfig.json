@@ -1,22 +1,20 @@
 {
+  "extends": "plasmo/templates/tsconfig.base",
+  "include": [
+    ".plasmo/index.d.ts",
+    "./**/*.ts",
+    "./**/*.tsx"
+  ],
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
     "jsx": "react-jsx",
-    "strict": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "sourceMap": true,
-    "declaration": false,
-    "noEmit": true,
-    "types": ["chrome"]
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": false,
+    "paths": {
+      "~*": ["./src/*"]
+    },
+    "baseUrl": ".",
+    "types": ["chrome"],
+    "ignoreDeprecations": "6.0"
   },
-  "include": ["src"],
-  "exclude": ["dist", "firefox", "node_modules"]
+  "exclude": ["node_modules", "build"]
 }
