@@ -177,6 +177,7 @@ export default function VoteMenu({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [limitNotice, setLimitNotice] = useState("");
+  const [voteError, setVoteError] = useState("");
   const [percentByCategory, setPercentByCategory] = useState<
     Record<string, number>
   >({});
@@ -472,6 +473,7 @@ export default function VoteMenu({
 
         if (res?.ok && res.rating) {
           writeSelectionToStorage(ids);
+          setVoteError("");
           if (Array.isArray(res.rating.categoryPercents)) {
             setPercentByCategory(
               buildPercentMap(res.rating.categoryPercents)
@@ -489,10 +491,21 @@ export default function VoteMenu({
           return;
         }
 
+        if (res?.status === 402) {
+          setVoteError("Sign in to vote — open the Slaze extension popup and sign in.");
+        } else if (res?.status === 429 && res.errorLabel) {
+          setVoteError(res.errorLabel);
+        } else if (res?.status === 429) {
+          setVoteError("Quota exceeded. Try again later.");
+        } else {
+          setVoteError("Vote failed. Try again.");
+        }
+
         console.warn("[Slaze] vote submit failed", {
           platform,
           postId,
           status: res?.status,
+          errorLabel: res?.errorLabel,
         });
       } finally {
         setSaving(false);
@@ -593,6 +606,11 @@ export default function VoteMenu({
                     </>
                   )}
                 </>
+              )}
+              {voteError && (
+                <p className="slaze-menu-hint" style={{ color: "#dc2626" }}>
+                  {voteError}
+                </p>
               )}
               {limitNotice && (
                 <p className="slaze-menu-hint">{limitNotice}</p>

@@ -3,21 +3,10 @@ import { lookupVerdict } from '../../shared/verdictCatalog';
 import { fetchWithRetry } from '../../shared/fetchWithRetry';
 import type { BatchItem, BinaryRatingEntry } from '../../shared/types';
 import { platformEncode } from '../platformEncode';
-import { getToken, refreshToken, getClerkUserId } from '../token';
+import { getToken, refreshToken, getClerkUserId, trackUsage, updatePlanFromHeaders } from '../token';
+import { buildSignedHeaders } from '../signing';
 
 const enc = new TextEncoder();
-
-async function buildHeaders(tok: string): Promise<Record<string, string>> {
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${tok}`,
-    "Content-Type": "application/octet-stream",
-  };
-  const clerkId = await getClerkUserId();
-  if (clerkId) {
-    headers["X-Slaze-User"] = clerkId;
-  }
-  return headers;
-}
 
 /** Pack an array of items into a compact Uint8Array for the /v1/b endpoint. */
 function packBatchRequest(
@@ -54,7 +43,14 @@ export async function handleFetchBatch(
   const body = packBatchRequest(items);
 
   async function doFetch(tok: string): Promise<Response> {
-    const headers = await buildHeaders(tok);
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${tok}`,
+      "Content-Type": "application/octet-stream",
+    };
+    const clerkId = await getClerkUserId();
+    if (clerkId) headers["X-Slaze-User"] = clerkId;
+    const sigHeaders = await buildSignedHeaders("POST", "/v1/b", body);
+    Object.assign(headers, sigHeaders);
     return fetch(`${API_BASE}/b`, {
       method: "POST",
       headers,
@@ -69,7 +65,13 @@ export async function handleFetchBatch(
     res = await fetchWithRetry(() => doFetch(token));
   }
 
-  if (!res.ok) return { ok: false };
+  if (!res.ok) {
+    updatePlanFromHeaders(res.headers);
+    return { ok: false };
+  }
+
+  trackUsage("check").catch(() => {});
+  updatePlanFromHeaders(res.headers);
 
   const respBuf = new Uint8Array(await res.arrayBuffer());
   const protoVersion = respBuf.length ? respBuf[0] : 0;

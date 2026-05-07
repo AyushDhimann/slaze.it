@@ -92,6 +92,7 @@ export const MESSAGE_TYPES = [
   "SLAZE_FETCH_SINGLE",
   "SLAZE_SUBMIT_VOTE",
   "SLAZE_TOKEN_CHANGED",
+  "SLAZE_LINK_TOKEN",
   "SLAZE_GET_POSTS",
   "SLAZE_REFRESH_BADGE",
 ] as const;
@@ -145,6 +146,7 @@ export interface SubmitVoteResponse {
   status: number;
   etag: string | null;
   verdict: VerdictHeader | null;
+  errorLabel?: string;
 }
 
 export interface GetPostsMessage {
@@ -158,8 +160,47 @@ export interface RefreshBadgeMessage {
   postId: string;
 }
 
+export interface LinkTokenMessage {
+  type: "SLAZE_LINK_TOKEN";
+}
+
+export interface LinkTokenResponse {
+  ok: boolean;
+}
+
 export interface TokenChangedMessage {
   type: "SLAZE_TOKEN_CHANGED";
+}
+
+// ── Plan / Quota ──────────────────────────────────────────────────────
+
+export interface PlanInfo {
+  tier: string;
+  plan: string;
+  planType: string;
+  clerkLinked: boolean;
+  quota: {
+    dailyChecks: number;
+    dailyVotes: number;
+    monthlyVotes: number;
+    hourlyChecks: number;
+    hourlyVotes: number;
+  };
+  usage: {
+    dailyChecks: number;
+    dailyVotes: number;
+    monthlyVotes: number;
+  };
+}
+
+export interface PlanResponse {
+  ok: boolean;
+  status: number;
+  plan: PlanInfo | null;
+}
+
+export interface GetPlanMessage {
+  type: "SLAZE_GET_PLAN";
 }
 
 // ── Vote Payload ────────────────────────────────────────────────────

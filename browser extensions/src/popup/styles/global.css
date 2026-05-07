@@ -1,0 +1,55 @@
+/* Slaze Popup — Global Reset & Utilities */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #1e293b;
+  background: transparent;
+  overflow: hidden;
+}
+
+/* ── Animations ────────────────────────────────────────────────── */
+
+@keyframes slaze-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes slaze-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slaze-dot-breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.7; }
+}
+
+.slaze-animate-in {
+  animation: slaze-fade-in 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.slaze-animate-in:nth-child(2) { animation-delay: 0.05s; }
+.slaze-animate-in:nth-child(3) { animation-delay: 0.10s; }
+.slaze-animate-in:nth-child(4) { animation-delay: 0.15s; }

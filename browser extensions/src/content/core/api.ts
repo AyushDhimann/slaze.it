@@ -245,6 +245,7 @@ export async function submitVote(
   status: number;
   etag?: string | null;
   rating?: Rating;
+  errorLabel?: string;
 }> {
   const pvBucket = platformVoteBucket(platformVotes);
   const payload = packVotePayload(
@@ -269,13 +270,13 @@ export async function submitVote(
   }
 
   if (!response) return { ok: false, status: 0 };
-  if (!response.ok || response.status !== 204) return response;
+  if (!response.ok || response.status !== 204) return { ...response, errorLabel: response.errorLabel };
 
+  // ── Build rating from vote response (verdict via ETag + headers) ──
   const cacheKey = `${platform}::${postId}`;
   const ttlMs = adaptiveTTL(pvBucket, timeBucket);
 
   let rating = parseVerdictETag(response.etag, pvBucket) as Rating | null;
-  // Hydrate verdict label from X-Slaze-* headers
   if (rating && response.verdict) {
     rating = { ...rating, ...response.verdict };
   }
@@ -283,20 +284,22 @@ export async function submitVote(
     cache.set(cacheKey, rating, ttlMs, response.etag ?? null);
   }
 
-  // One-post binary refresh gives us full category percentages for menu bars.
-  const refreshed = await fetchBatchRatings([
+  // Fire batch refresh asynchronously — don't block the UI on it.
+  // Vote response already has verdict via ETag + X-Slaze-* headers.
+  // Batch refresh only adds category percent bars for the dropdown.
+  const finalRating = rating;
+  fetchBatchRatings([
     { platform, postId, cacheKey, pvBucket, timeBucket },
-  ]);
-  if (refreshed.has(cacheKey)) {
-    // Preserve verdict label from vote response; binary batch doesn't carry it.
-    const merged: Rating = { ...refreshed.get(cacheKey)! };
-    if (rating?.labelPhrase) merged.labelPhrase = rating.labelPhrase;
-    if (rating?.labelSubtext) merged.labelSubtext = rating.labelSubtext;
-    if (rating?.signatureState !== undefined)
-      merged.signatureState = rating.signatureState;
-    rating = merged;
-    cache.set(cacheKey, rating, ttlMs);
-  }
+  ]).then((refreshed) => {
+    if (refreshed.has(cacheKey)) {
+      const merged: Rating = { ...refreshed.get(cacheKey)! };
+      if (finalRating?.labelPhrase) merged.labelPhrase = finalRating.labelPhrase;
+      if (finalRating?.labelSubtext) merged.labelSubtext = finalRating.labelSubtext;
+      if (finalRating?.signatureState !== undefined)
+        merged.signatureState = finalRating.signatureState;
+      cache.set(cacheKey, merged, ttlMs);
+    }
+  }).catch(() => { /* non-critical — verdict already shown */ });
 
   return { ...response, rating: rating ?? undefined };
 }

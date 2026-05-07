@@ -11,7 +11,7 @@
  *   SLAZE_SUBMIT_VOTE   → POST /v1/ratings/:platform/:postId/vote/:payload
  */
 import { API_BASE } from '../shared/config';
-import { invalidateToken } from './token';
+import { invalidateToken, linkTokenToClerk, linkTokenToClerkWithRetry, getPlanInfo } from './token';
 import { handleFetchBatch } from './handlers/fetchBatch';
 import { handleFetchSingle } from './handlers/fetchSingle';
 import { handleSubmitVote } from './handlers/submitVote';
@@ -20,6 +20,19 @@ import { handleSubmitVote } from './handlers/submitVote';
 
 chrome.storage.onChanged.addListener((changes) => {
   if ("slaze_auth_token" in changes) invalidateToken();
+
+  // Auto-link token when Clerk session appears (user signed in).
+  for (const key of Object.keys(changes)) {
+    if (
+      (key.startsWith("__clerk") || key === "clerk-db-jwt") &&
+      changes[key]?.newValue
+    ) {
+      linkTokenToClerkWithRetry().catch(() => {
+        /* best-effort — vote handler will retry on next attempt */
+      });
+      break;
+    }
+  }
 });
 
 // ── Message Dispatch Table ──────────────────────────────────────────
@@ -33,6 +46,10 @@ const ASYNC_HANDLERS: Record<string, AsyncHandler> = {
     handleFetchSingle(msg as Parameters<typeof handleFetchSingle>[0]),
   SLAZE_SUBMIT_VOTE: (msg) =>
     handleSubmitVote(msg as Parameters<typeof handleSubmitVote>[0]),
+  SLAZE_LINK_TOKEN: (_msg) =>
+    linkTokenToClerkWithRetry().then((ok) => ({ ok })),
+  SLAZE_GET_PLAN: (_msg) =>
+    getPlanInfo().then((plan) => ({ ok: plan !== null, plan })),
 };
 
 const SYNC_HANDLERS: Record<string, (msg: any, send: (r: unknown) => void) => void> = {
@@ -90,7 +107,26 @@ chrome.runtime.onInstalled.addListener(async () => {
           typeof data === "object" &&
           typeof (data as Record<string, unknown>).token === "string"
         ) {
-          updates.slaze_auth_token = (data as Record<string, string>).token;
+          const d = data as Record<string, unknown>;
+          updates.slaze_auth_token = d.token as string;
+
+          if (d.plan && d.quota) {
+            const info: import("../shared/types").PlanInfo = {
+              tier: (d.tier as string) || "anonymous",
+              plan: d.plan as string,
+              planType: "free",
+              clerkLinked: false,
+              quota: {
+                dailyChecks: (d.quota as Record<string, number>).dailyChecks || 0,
+                dailyVotes: (d.quota as Record<string, number>).dailyVotes || 0,
+                monthlyVotes: (d.quota as Record<string, number>).monthlyVotes || 0,
+                hourlyChecks: 0,
+                hourlyVotes: 0,
+              },
+              usage: { dailyChecks: 0, dailyVotes: 0, monthlyVotes: 0 },
+            };
+            await chrome.storage.local.set({ slaze_plan_info: JSON.stringify(info) });
+          }
         }
       } else {
         console.error("[Slaze] Token creation failed:", res.status);

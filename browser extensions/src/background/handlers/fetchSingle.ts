@@ -2,7 +2,8 @@ import { API_BASE } from '../../shared/config';
 import { parseVerdictHeaders } from '../../shared/parseHeaders';
 import { fetchWithRetry } from '../../shared/fetchWithRetry';
 import type { SingleFetchRequest, SingleFetchResponse } from '../../shared/types';
-import { getToken, refreshToken, getClerkUserId } from '../token';
+import { getToken, refreshToken, getClerkUserId, trackUsage, updatePlanFromHeaders } from '../token';
+import { buildSignedHeaders } from '../signing';
 
 export async function handleFetchSingle(
   msg: SingleFetchRequest
@@ -24,6 +25,8 @@ export async function handleFetchSingle(
     if (staleEtag) headers["If-None-Match"] = staleEtag;
     const clerkId = await getClerkUserId();
     if (clerkId) headers["X-Slaze-User"] = clerkId;
+    const sigHeaders = await buildSignedHeaders("GET", `/v1${url.slice(API_BASE.length)}`);
+    Object.assign(headers, sigHeaders);
     return fetch(url, { method: "GET", headers });
   }
 
@@ -35,6 +38,11 @@ export async function handleFetchSingle(
   }
 
   const verdict = parseVerdictHeaders(res);
+
+  if (res.ok) {
+    trackUsage("check").catch(() => {});
+  }
+  updatePlanFromHeaders(res.headers);
 
   return {
     ok: res.ok,

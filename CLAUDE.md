@@ -13,7 +13,7 @@ The extension ships for **Chrome MV3** (primary) and **Firefox MV2** (`plasmo bu
 | Language | TypeScript 6 (strict mode) |
 | UI | React 19 + React DOM 19 |
 | Build | Plasmo 0.90 (Parcel bundler) |
-| Auth | Clerk (`@clerk/chrome-extension`) |
+| Auth | Clerk (`@clerk/chrome-extension` v3) |
 | Routing | React Router 7 (popup memory router) |
 | Package manager | pnpm |
 | Target | Chrome 110+, Firefox 109+ |
@@ -46,7 +46,7 @@ The extension runs in three separate JavaScript contexts that communicate via `c
 ### 1. Background (Service Worker)
 - **Entry**: `src/background/index.ts`
 - **Role**: Authenticated fetch proxy + Clerk client. Content scripts can't call the Slaze API directly (CORS); they relay through the service worker which has `host_permissions`.
-- **Key modules**: `token.ts` (Clerk session token via `createClerkClient`), `platformEncode.ts` (binary wire format), `handlers/` (one file per message type)
+- **Key modules**: `token.ts` (Clerk client + anonymous token management), `signing.ts` (HMAC-SHA256 request signing), `platformEncode.ts` (binary wire format), `handlers/` (one file per message type)
 - **Binary protocol**: POST `/v1/b` with compact `Uint8Array` body containing 1 byte platform, 1 byte ID length, and variable ID per post. Response is a dense binary array (11 bytes per rating v1, 15 bytes per rating v2 with verdict engine data).
 - **Verdict resolution**: Uses the inlined `verdictCatalog.ts` lookup table (mirror of server-side Go catalog) to resolve `(state, c1, c2, c3)` tuples into human-readable verdict phrases without a second round-trip.
 - **Auth flow**: On first API call, lazily initialises `createClerkClient` from `@clerk/chrome-extension/background`. Gets session token via `clerk.session.getToken()`. On 401, refreshes and retries. Returns `null` if user is not signed in (content script falls back to offline state).
@@ -147,6 +147,14 @@ Users need persistent identity for usage quotas and vote history. Clerk's `@cler
 ### Why a binary batch protocol?
 The POST `/v1/b` endpoint accepts a compact binary body (1 byte per post overhead + ID) and returns a dense binary array. This minimises bandwidth for pages with 30+ posts per viewport. A single 500-byte binary request replaces 30 individual JSON API calls. Keeps the extension fast even on slow connections.
 
+### Why zero-JSON wire protocol?
+The API uses no JSON anywhere in the request/response cycle for main endpoints:
+- **Votes** → POST body is zero bytes. Vote data packed into URL path (`v026p1u3t4d5000`). Response is 204 No Content with verdict in `ETag` + `X-Slaze-*` headers.
+- **Single ratings** → GET with empty body. Response is 204 with `ETag` header carrying packed verdict. No body bytes.
+- **Batch ratings** → POST with `application/octet-stream` binary body. Response is binary array (15 bytes per post).
+- **Quota/errors** → All quota info and error messages sent via response headers (`X-Slaze-Error`, `X-Quota-Tier`, `X-Quota-Plan`, `X-Quota-Limit`, `X-Quota-Used`, `X-Quota-Remaining`, `Retry-After`). Zero JSON error bodies.
+- **Auth endpoints** (`/v1/auth/token`, `/v1/auth/link`) are the only JSON endpoints — required for bootstrapping device identity and Clerk linking. The shared `updatePlanFromHeaders()` in `token.ts` parses quota headers from every API response and persists usage counts to `chrome.storage.local` so the popup shows live quota data.
+
 ### Why verdictCatalog is client-side?
 The ~120-entry verdict phrase lookup table is duplicated in the extension rather than fetched from the server. This means the verdict label is available immediately when ratings load, with no second round-trip. The catalog must stay in sync with the server's `verdict_catalog.go`. Both are generated from the same source of truth.
 
@@ -156,21 +164,61 @@ Cache TTL ranges from 5 seconds (hot posts with high activity) to 24 hours (old 
 ### Why React in a content script?
 The vote menu UI (9 category buttons with fill bars, verdict labels, portal positioning) is complex enough to justify React. At ~72 KB gzipped (React 19 + all components), the bundle cost is acceptable. The rest of the content script is vanilla TypeScript; React is only used where its component model adds value.
 
-## Clerk auth flow
+### Why Apple/Adobe design tokens in the popup?
+The popup uses a design token system (`src/popup/styles/tokens.ts`) with indigo-brand colors, 4px spacing grid, SF-style type scale, and glass blur effects. Inline styles reference these tokens rather than hardcoded pixel values. Global CSS (`src/popup/styles/global.css`) provides the reset, font smoothing, and staggered fade-in animations. The popup reads quota/plan info from `chrome.storage.local` (written by background handlers from API response headers) and displays usage as scannable progress bars with color-coded fill (green → indigo → red at 85%+).
 
-### Token flow
+## Auth flow: two-layer identity (Anonymous + Clerk)
+
+The extension uses a hybrid two-layer auth model:
+
+### Layer 1: Anonymous device token
+- Created on first install via `POST /v1/auth/token`. Stored in `chrome.storage.local` as `slaze_auth_token`.
+- Provides baseline read access (50 checks/day, 0 votes/month).
+- Sent as `Authorization: Bearer <token>` header on every API request.
+- Managed by `getToken()` / `refreshToken()` / `invalidateToken()` in `src/background/token.ts`.
+
+### Layer 2: Clerk user identity
+- Users sign in via the Slaze website (redirect-to-website flow, not in-popup).
+- `sign-in.tsx` / `sign-up.tsx` open `https://slaze.it.com/sign-in` (or `sign-up`) in a new browser tab via `chrome.tabs.create()`. After auth on the website, Clerk syncs the session to the extension via `chrome.storage`.
+- Clerk user ID sent as `X-Slaze-User` header. Clerk session JWT sent as `X-Clerk-Token` header on vote requests.
+- **Voting requires linked Clerk identity** — anonymous tokens return 402 "sign in to vote." On first vote with valid Clerk JWT, the backend auto-links the token inline and upgrades tier to `email` (5,000 votes/month).
+- Background service worker lazily initialises `createClerkClient` from `@clerk/chrome-extension/background` (v3, deprecated path — still functional). The recommended v3 import is `@clerk/chrome-extension/client` with `{ background: true }`.
+- On sign-in, `chrome.storage.onChanged` listener in `src/background/index.ts` detects Clerk session keys and auto-calls `linkTokenToClerk()` (best-effort).
+
+### Why redirect-to-website instead of in-popup auth?
+In-popup `<SignIn>`/`<SignUp>` components fail in extension context because:
+1. `window.open()` is blocked by Chrome for popup contexts — OAuth (Google) hangs indefinitely
+2. Clerk dev instance (`pk_test_*`) browser handshake fails from `chrome-extension://` origins
+3. `X-Frame-Options: DENY` on the website prevents iframe-based auth
+Redirecting to the syncHost website for auth guarantees it works and is the recommended Clerk pattern for Chrome extensions.
+
+### HMAC Request Signing
+
+All API requests from the background service worker are signed with HMAC-SHA256 to prove they came from a genuine extension install. The signing key is inlined at build time.
+
+**Signing payload** (in `src/background/signing.ts`):
 ```
-1. User opens popup → ClerkProvider initialises Clerk client
-2. User signs in via SignIn component → Clerk stores session in chrome.storage
-3. Background service worker on first API request:
-   → createClerkClient({ publishableKey, syncHost })
-   → clerk.session.getToken() → return session token
-4. Token placed in Authorization: Bearer header for API calls
-5. Clerk internally handles token refresh via sync mechanism
-6. On sign out → session cleared → getToken() returns null → API returns { ok: false }
+method + ":" + path + ":" + unixTimestamp + ":" + sha256hex(body)
 ```
 
-### Environment variables
+**Headers added**:
+- `X-Slaze-Ts`: Unix timestamp (seconds)
+- `X-Slaze-Sig`: Hex-encoded HMAC-SHA256 signature
+
+**Backend verification** (`server/signing.go`):
+- Timestamp must be within ±5 minutes of server time (replay protection)
+- Signature recomputed and compared in constant time via `hmac.Equal`
+- Body is read, hashed for verification, then restored via `io.NopCloser` for downstream handlers
+- Health, status, token creation, and token linking endpoints are exempted
+- If `SLAZE_API_SECRET` is not set on the server, enforcement is silently skipped (dev mode)
+
+**Threat model**:
+- Bearer token alone is insufficient — HMAC signature required
+- Replay attacks blocked by 5-minute timestamp window
+- Secret can be extracted from extension bundle (same as Clerk publishable key) — rotate periodically, monitor for abuse
+- Clerk JWT provides second factor for voting (server-verified, short-lived)
+
+## Environment variables
 
 Env files live at project root. `scripts/copy-env.mjs` copies the right one into `browser extensions/.env` before every build/dev run.
 
@@ -184,9 +232,10 @@ Env files live at project root. `scripts/copy-env.mjs` copies the right one into
 | Variable | Example | Required |
 |---|---|---|
 | `PLASMO_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_test_xxxxxxxx` | Yes |
-| `PLASMO_PUBLIC_CLERK_SYNC_HOST` | `http://localhost:8090` | Yes |
+| `PLASMO_PUBLIC_CLERK_SYNC_HOST` | `https://slaze.it.com` | Yes |
 | `CLERK_FRONTEND_API` | `https://<app>.clerk.accounts.dev` | Yes (for host_permissions) |
 | `CRX_PUBLIC_KEY` | `<extension-public-key>` | Only for production (stable extension ID) |
+| `PLASMO_PUBLIC_SLAZE_API_SECRET` | `sze_hmac_...` | Yes (HMAC request signing) |
 | `SLAZE_API_BASE` | `https://api.slaze.it.com/v1` | Yes |
 
 ## Common issues
@@ -195,6 +244,12 @@ Env files live at project root. `scripts/copy-env.mjs` copies the right one into
 - **Shadow DOM on Reddit**: `shreddit-post` elements have open shadow roots. Selectors must pierce through `post.shadowRoot` for action-row insertion. CSS is injected into shadow roots via `adoptedStyleSheets` (with `<style>` fallback).
 - **X/Twitter overflow hidden**: Tweet cards use `overflow: hidden` which clips absolutely-positioned dropdowns. The vote menu uses React Portal to render the dropdown at `document.body` level with `position: fixed`, repositioning on scroll/resize.
 - **Clerk publishable key missing**: If `PLASMO_PUBLIC_CLERK_PUBLISHABLE_KEY` or `PLASMO_PUBLIC_CLERK_SYNC_HOST` are not set in `.env` or `.env.dev`, the build will fail at runtime when `ClerkProvider` or `createClerkClient` is called. Run `pnpm copy-env` (or just build/dev which does it automatically) to copy the root env file into `browser extensions/.env`.
+- **HMAC signing mismatch**: If `PLASMO_PUBLIC_SLAZE_API_SECRET` in the extension does not match `SLAZE_API_SECRET` on the backend, all API requests will be rejected with 401 "invalid request signature." The dev secret differs from production to prevent cross-environment requests.
+- **Sign-in opens browser tab**: This is intentional. The extension redirects to the website for authentication. After signing in on the website, the session syncs back to the extension via Clerk's chrome.storage mechanism. The popup auto-detects the session via `useAuth()`.
+- **Vote returns 402 "sign in to vote"**: Anonymous tokens have 0 votes/month. Users must sign in via Clerk first. The backend auto-links the token on first vote with a valid Clerk JWT — the second vote attempt will succeed.
+- **Vote returns 429 with X-Slaze-Error header**: Quota exceeded. The error message is in the `X-Slaze-Error` response header (e.g. `daily vote quota exceeded`). The background handler passes it to the content script as `errorLabel`. The VoteMenu displays it directly. Usage counters are updated from `X-Quota-Used` header.
+- **Vote stuck on "Saving..."**: The vote submit flow is now non-blocking for the batch refresh. The UI updates immediately from the 204 vote response (ETag + X-Slaze-* headers). The follow-up binary batch refresh (for dropdown percent bars) fires asynchronously and won't block the UI.
+- **Plan/usage not showing in popup**: The background handlers call `updatePlanFromHeaders()` on every API response, reading `X-Quota-*` headers and persisting to `chrome.storage.local`. The popup reads from storage on mount and falls back to `SLAZE_GET_PLAN` runtime message to the background.
 - **Plasmo content script discovery**: Content scripts must be in `src/contents/` (plural). `src/content/` is NOT auto-discovered by Plasmo — it's only used as an internal module directory imported by `src/contents/slaze.ts`.
 
 ## Testing
