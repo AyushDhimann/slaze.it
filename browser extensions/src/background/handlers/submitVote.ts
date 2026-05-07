@@ -24,9 +24,11 @@ export async function handleSubmitVote(
 
   async function doFetch(tok: string): Promise<Response> {
     const headers: Record<string, string> = { Authorization: `Bearer ${tok}` };
-    const clerkId = await getClerkUserId();
+    const [clerkId, clerkToken] = await Promise.all([
+      getClerkUserId(),
+      getClerkSessionToken(),
+    ]);
     if (clerkId) headers["X-Slaze-User"] = clerkId;
-    const clerkToken = await getClerkSessionToken();
     if (clerkToken) headers["X-Clerk-Token"] = clerkToken;
     const sigHeaders = await buildSignedHeaders("POST", signingPath);
     Object.assign(headers, sigHeaders);

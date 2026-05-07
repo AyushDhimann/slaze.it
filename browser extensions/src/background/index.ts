@@ -11,12 +11,16 @@
  *   SLAZE_SUBMIT_VOTE   → POST /v1/ratings/:platform/:postId/vote/:payload
  */
 import { API_BASE } from '../shared/config';
-import { invalidateToken, linkTokenToClerk, linkTokenToClerkWithRetry, getPlanInfo } from './token';
+import { invalidateToken, linkTokenToClerk, linkTokenToClerkWithRetry, getPlanInfo, getClerkUserId } from './token';
 import { handleFetchBatch } from './handlers/fetchBatch';
 import { handleFetchSingle } from './handlers/fetchSingle';
 import { handleSubmitVote } from './handlers/submitVote';
 
 // ── Initialisation ──────────────────────────────────────────────────
+
+// Pre-warm the Clerk client at service-worker startup so the first
+// vote/fetch doesn't incur the ~5s Clerk load() latency. Best-effort.
+getClerkUserId().catch(() => { /* SW may restart before Clerk is needed */ });
 
 chrome.storage.onChanged.addListener((changes) => {
   if ("slaze_auth_token" in changes) invalidateToken();

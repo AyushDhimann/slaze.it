@@ -257,14 +257,24 @@ export async function submitVote(
   );
   if (!payload) return { ok: false, status: 400 };
 
+  const SEND_TIMEOUT_MS = 12_000;
+
   let response: SubmitVoteResponse;
   try {
-    response = (await chrome.runtime.sendMessage({
-      type: "SLAZE_SUBMIT_VOTE",
-      platform,
-      postId,
-      payload,
-    })) as SubmitVoteResponse;
+    // Race sendMessage against a timeout. The service worker may be
+    // restarting (cold start → Clerk init → HMAC → API fetch). Without
+    // a timeout the UI shows "Saving..." indefinitely.
+    response = (await Promise.race([
+      chrome.runtime.sendMessage({
+        type: "SLAZE_SUBMIT_VOTE",
+        platform,
+        postId,
+        payload,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("SLAZE_SUBMIT_VOTE timeout")), SEND_TIMEOUT_MS),
+      ),
+    ])) as SubmitVoteResponse;
   } catch {
     return { ok: false, status: 0 };
   }
